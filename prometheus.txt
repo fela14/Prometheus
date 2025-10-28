@@ -1,0 +1,43 @@
+git clone https://github.com/rslim087a/prometheus-docker-compose.git
+cd prometheus-docker-compose/
+docker-compose up -d
+
+curl -X GET https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/ \
+&& \
+curl -X GET https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/metrics \
+&& \
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"input": "value"}' \
+  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items \
+&& \
+curl -X PUT -H "Content-Type: application/json" \
+  -d '{"input": "value"}' \
+  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+&& \
+curl -X GET -H "Content-Type: application/json" \
+  -d '{"input": "value"}' \
+  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+&& \
+curl -X UPDATE -H "Content-Type: application/json" \
+  -d '{"input": "value"}' \
+  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+&& \
+curl -X DELETE -H "Content-Type: application/json" \
+  -d '{"input": "value"}' \
+  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 
+
+# Process Uptime
+time() - process_start_time_seconds{job="fastapi-app"}
+label_values(up, job) -> set variable
+time() - process_start_time_seconds{job="$job"}
+
+# Total Requests
+sum(increase(http_request_total{job="fastapi-app"}[5m]))
+sum(increase(http_request_total{job="fastapi-app"}[$__range]))
+
+#
+100 * (
+  sum(increase(http_request_total{job="fastapi-app", status=~"4.."}[5m] or vector(0))) +
+  sum(increase(http_request_total{job="fastapi-app", status=~"5.."}[5m] or vector(0)))
+) / sum(increase(http_request_total{job="fastapi-app"}[5m]))
+
