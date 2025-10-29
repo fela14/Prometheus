@@ -2,30 +2,34 @@ git clone https://github.com/rslim087a/prometheus-docker-compose.git
 cd prometheus-docker-compose/
 docker-compose up -d
 
-curl -X GET https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/ \
+curl -X GET https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/ \
 && \
-curl -X GET https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/metrics \
+curl -X GET https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/ \
 && \
 curl -X POST -H "Content-Type: application/json" \
   -d '{"input": "value"}' \
-  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items \
+  https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items \
 && \
 curl -X PUT -H "Content-Type: application/json" \
   -d '{"input": "value"}' \
-  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+  https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items/5 \
 && \
 curl -X GET -H "Content-Type: application/json" \
   -d '{"input": "value"}' \
-  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+  https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items/5 \
 && \
 curl -X UPDATE -H "Content-Type: application/json" \
   -d '{"input": "value"}' \
-  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 \
+  https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items/5 \
 && \
 curl -X DELETE -H "Content-Type: application/json" \
   -d '{"input": "value"}' \
-  https://8000-port-652riee2rdwhw2gd.labs.kodekloud.com/items/3 
+  https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items/5 
 
+
+GRAFANA DASHBOARD
+
+================ Panels =================
 # Process Uptime
 time() - process_start_time_seconds{job="fastapi-app"}
 label_values(up, job) -> set variable
@@ -33,11 +37,62 @@ time() - process_start_time_seconds{job="$job"}
 
 # Total Requests
 sum(increase(http_request_total{job="fastapi-app"}[5m]))
-sum(increase(http_request_total{job="fastapi-app"}[$__range]))
+sum(increase(http_request_total{job="$job"}[$__range]))
 
-#
-100 * (
-  sum(increase(http_request_total{job="fastapi-app", status=~"4.."}[5m] or vector(0))) +
-  sum(increase(http_request_total{job="fastapi-app", status=~"5.."}[5m] or vector(0)))
-) / sum(increase(http_request_total{job="fastapi-app"}[5m]))
+# Error Rate
+100 * sum(
+  increase(http_request_total{job="fastapi-app", status=~"4..|5.."}[5m]) or vector(0)
+)
+/
+sum(
+  increase(http_request_total{job="fastapi-app"}[5m]) or vector(0)
+)
+100 * sum(
+  increase(http_request_total{job="$job", status=~"4..|5.."}[$__range]) or vector(0)
+)
+/
+sum(
+  increase(http_request_total{job="$job"}[$__range]) or vector(0)
+)
 
+# Duration
+
+================ Rows =================
+# Average Request Duration
+sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_request_duration_seconds_count[5m]))
+legend -> {{method}}{{path}}{{status}}
+
+# API Throughput
+rate(http_request_total{job="fastapi-app"}[5m])
+
+# Requests by Status Codes
+sum(rate(http_request_total{job="fastapi-app"}[5m])) by (method)
+
+# API Latency Percentiles
+histogram_quantile(
+  0.95,
+  sum(rate(http_request_duration_seconds_bucket{job="fastapi-app"}[5m])) by (le)
+)
+histogram_quantile(
+  0.99,
+  sum(rate(http_request_duration_seconds_bucket{job="$job"}[5m])) by (le)
+)
+legend -> p50, p90, p95, p99
+
+# Average Duration Request
+rate(http_request_duration_seconds_sum[1m])) / rate(http_request_duration_seconds_count[1m])
+legend -> {{method}}{{path}}{{status}}
+
+# CPU Usage
+process_cpu_usage{job="fastapi-app"}
+
+# Open File Descriptors
+process_open_fds{ job="fastapi-app"} / process_max_fds{ job="fastapi-app"}
+
+# Memory Usage
+process_resident_memory_bytes{ job="fastapi-app"}
+process_virtual_memory_bytes{ job="fastapi-app"}
+process_memory_usage_bytes{ job="fastapi-app"}
+
+# GC Object Collected
+rate(python_gc_collections_total{job="fastapi-app"}[5m])
