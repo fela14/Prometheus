@@ -137,7 +137,7 @@ kubectl port-forward -n monitoring svc/fastapi-app 8000:8000
 
 
 
-#apt
+# To use prometheus-community/prometheus instead
 # Update packages and install basic tools
 apk update && apk add curl tar gzip bash
 
