@@ -186,3 +186,117 @@ kubectl delete clusterrolebinding prometheus-prometheus-node-exporter --ignore-n
 kubectl get pods -n monitoring
 kubectl get daemonset -n monitoring
 ======================================================
+
+
+MYSQL
+
+git clone https://github.com/rslim087a/mysql-prometheus-sample.git
+cd mysql-prometheus-sample/mysql/
+kubectl create namespace database-monitoring
+kubectl apply -f .
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm search repo prometheus-community
+
+add to mysql-exporter/mysql-exporter-values.yaml 
+mysql:
+  host: "mysql.database-monitoring.svc.cluster.local" # specifying the ns
+  pass: "mysqluser"
+  port: 3306
+  #user: ""
+  # secret only containing the password
+  existingPasswordSecret:
+    name: "mysql-secret" # secret file
+    key: "MYSQL_PASSWORD" # key referring to the password
+
+cd..
+helm install mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring
+kubectl port-forward svc/mysql-exporter-prometheus-mysql-exporter 9104:9104 -n database-monitoring 
+kubectl get secret -n database-monitoring
+helm upgrade mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring --values mysql-exporter/mysql-exporter-values.yaml
+
+add to mysql-exporter/mysql-exporter-values.yaml
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  additionalLabels:
+    release: prometheus # if you installed with kube-prometheus-stack
+
+kubectl apply -f grafana -n monitoring
+kubectl get pods -n monitoring
+kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring
+  
+
+POSTGRES
+
+git clone https://github.com/rslim087a/postgres-prometheus-sample.git
+cd postgres-prometheus-sample/postgres
+kubectl create namespace database-monitoring
+kubectl apply -f .
+
+add this to postgres-exporter file
+
+# PostgreSQL Exporter Helm Values
+config:
+  ## The datasource properties on config are passed through helm tpl function.
+  ## ref: https://helm.sh/docs/developing_charts/#using-the-tpl-function
+  datasource:
+    # Specify one of both datasource or datasourceSecret
+    host: 'postgresql.database-monitoring.svc.cluster.local'
+    port: "5432"
+    userSecret:
+    # Secret name
+      name: 'postgresql-secret'
+    # User key inside secret
+      key: 'POSTGRES_USER'
+    passwordSecret:
+    # Secret name
+      name: 'postgresql-secret'
+    # User key inside secret
+      key: 'POSTGRES_PASSWORD'
+
+
+kubectl get secret -n database-monitoring 
+#NAME                TYPE     DATA   AGE
+#postgresql-secret   Opaque   2      10m
+# Grab the name.. add to name: -> exportder file
+
+helm install postgres-exporter prometheus-community/prometheus-postgres-exporter -f postgres-exporter/postgresql-exporter-values.yaml -n database-monitoring
+
+#add service monitor block to exporter file
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+
+helm upgrade postgres-exporter prometheus-community/prometheus-postgres-exporter -f postgres-exporter/postgresql-exporter-values.yaml -n database-monitoring
+
+kubectl apply -f grafana -n monitoring
+kubectl get svc -n monitoring
+kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring
+
+
+MONGODB
+
+git clone https://github.com/rslim087a/mongodb-exporter-sample.git
+
+# exporter file
+# If the multi-target mode is enabled, this value will be ignored.
+# [mongodb[+srv]://][user:pass@]host1[:port1][,host2[:port2],...][/database][?options]
+mongodb:
+  # uri: "mongodb://admin:password123@mongodb.mongodb.svc.cluster.local:27017"
+  existingSecret:
+    name: "mongodb-secret"
+    key: "CONNECTION_URI"
+
+  serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  additionalLabels:
+    release: prometheus
+  
+
+helm install mongodb-exporter prometheus-community/prometheus-mongodb-exporter -f mongodb-exporter/mongodb-exporter-values.yaml -n mongodb
+
