@@ -1,3 +1,5 @@
+DOCKER
+
 git clone https://github.com/rslim087a/prometheus-docker-compose.git
 cd prometheus-docker-compose/
 docker-compose up -d
@@ -27,8 +29,7 @@ curl -X DELETE -H "Content-Type: application/json" \
   https://8000-port-fcxujocxms4hokmr.labs.kodekloud.com/items/5 
 
 
-GRAFANA DASHBOARD
-
++*+*+*+*+*+* Grafana Dashboard +*+*+*+*+*+*
 ================ Panels =================
 # Process Uptime
 time() - process_start_time_seconds{job="fastapi-app"}
@@ -54,8 +55,6 @@ sum(
 sum(
   increase(http_request_total{job="$job"}[$__range]) or vector(0)
 )
-
-# Duration
 
 ================ Rows =================
 # Average Request Duration
@@ -96,3 +95,94 @@ process_memory_usage_bytes{ job="fastapi-app"}
 
 # GC Object Collected
 rate(python_gc_collections_total{job="fastapi-app"}[5m])
+
+
+KUBERNETES
+
+#apk
+# Download helm
+# Update package index and install required tools
+apk update && apk add curl tar gzip bash
+
+# Download and run the official Helm install script
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
+
+# Verify installation
+helm version
+
+# To add the Prometheus Helm chart repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+# search
+helm search repo prometheus-community/kube-prometheus-stack --versions
+
+# Install
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --version 45.7.1 \
+  --namespace monitoring \
+  --create-namespace
+
+kubectl get pods -n monitoring
+kubectl get svc -n monitoring
+kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+# kubectl get secret -n monitoring prometheus-grafana
+# kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode; echo
+
+git clone https://github.com/rslim087a/application-monitoring-prometheus.git
+cd application-monitoring-prometheus
+kubectl apply -f
+kubectl get svc -n monitoring
+kubectl port-forward -n monitoring svc/fastapi-app 8000:8000
+
+
+
+#apt
+# Update packages and install basic tools
+apk update && apk add curl tar gzip bash
+
+# Download and install Helm
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify Helm installation
+helm version
+
+# Add Prometheus Helm chart repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Optional: Search for available Prometheus chart versions
+helm search repo prometheus-community/prometheus --versions
+
+# Install only Prometheus (not the full monitoring stack)
+helm install prometheus prometheus-community/prometheus \
+  --version 25.27.0 \
+  --namespace monitoring \
+  --create-namespace
+
+# Verify that pods are running
+kubectl get pods -n monitoring
+
+# Check the Prometheus services
+kubectl get svc -n monitoring
+
+
+==================================================
+# if experiencing nodeExporter container not creating..
+# and want to disable it
+
+helm upgrade prometheus prometheus-community/prometheus \
+  --namespace monitoring \
+  --reuse-values \
+  --set nodeExporter.enabled=false \
+  --set nodeExporter.hostRootFsMount.enabled=false
+
+kubectl delete daemonset prometheus-prometheus-node-exporter -n monitoring --ignore-not-found
+kubectl delete pod -n monitoring -l app.kubernetes.io/name=prometheus-node-exporter --ignore-not-found
+kubectl delete serviceaccount prometheus-prometheus-node-exporter -n monitoring --ignore-not-found
+kubectl delete clusterrole prometheus-prometheus-node-exporter --ignore-not-found
+kubectl delete clusterrolebinding prometheus-prometheus-node-exporter --ignore-not-found
+
+kubectl get pods -n monitoring
+kubectl get daemonset -n monitoring
+======================================================
