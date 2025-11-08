@@ -195,7 +195,7 @@ cd mysql-prometheus-sample/mysql/
 kubectl create namespace database-monitoring
 kubectl apply -f .
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
+helm repo update prometheus-community
 helm search repo prometheus-community
 
 add to mysql-exporter/mysql-exporter-values.yaml 
@@ -210,7 +210,8 @@ mysql:
     key: "MYSQL_PASSWORD" # key referring to the password
 
 cd..
-helm install mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring
+# helm install mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring
+helm install mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring --values mysql-exporter/mysql-exporter-values.yaml
 kubectl port-forward svc/mysql-exporter-prometheus-mysql-exporter 9104:9104 -n database-monitoring 
 kubectl get secret -n database-monitoring
 helm upgrade mysql-exporter prometheus-community/prometheus-mysql-exporter -n database-monitoring --values mysql-exporter/mysql-exporter-values.yaml
@@ -300,3 +301,43 @@ mongodb:
 
 helm install mongodb-exporter prometheus-community/prometheus-mongodb-exporter -f mongodb-exporter/mongodb-exporter-values.yaml -n mongodb
 
+
+REDIS
+
+git clone https://github.com/rslim087a/redis-prometheus-sample.git
+cd redis-prometheus-sample/
+cd redis
+kubectl create namespace database-monitoring
+kubectl apply -f .
+kubectl get pods -n database-monitoring
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update prometheus-community
+helm search repo prometheus-community
+
+add to redis-exporter/redis-exporter-values.yaml 
+# Custom values for redis-exporter
+redisAddress: redis://redis.database-monitoring.svc.cluster.local:6379
+auth:
+  # Use password authentication
+  enabled: true
+  # Use existing secret (ignores redisPassword)
+  secret:
+    name: "redis-secret"
+    key: "REDIS_PASSWORD"
+
+serviceMonitor:
+  # When set true then use a ServiceMonitor to configure scraping
+  enabled: true
+  label:
+    release: prometheus
+
+kubectl get secret -n database-monitor -o yaml
+cd ..
+helm install redis-exporter prometheus-community/prometheus-redis-exporter -n database-monitoring -f redis-exporter/redis-exporter-values.yaml
+kubectl get pods -n database-monitoring
+kubectl get svc -n database-monitoring
+kubectl port-forward svc/redis-exporter-prometheus-redis-exporter 9121:9121 -n database-monitoring &
+kubectl get servicemonitor -n database-monitoring
+kubectl port-forward svc/prometheus-operated 9090:9090 -n monitoring &
+kubectl apply -f grafana -n monitoring
+kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring &
